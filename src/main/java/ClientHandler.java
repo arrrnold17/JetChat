@@ -40,8 +40,10 @@ public class ClientHandler implements Runnable {
 				LOGGER.info("Received message from " + message.getSender() + ": " + message.getContent());
 				server.broadcast(message, this);
 			}
+		} catch (EOFException ex) {
+			LOGGER.error("Client: " + username + " disconnected.");
 		} catch (IOException | ClassNotFoundException ex) {
-			LOGGER.error("Client " + username + " disconnected.", ex);
+			LOGGER.error("Error handling client", ex);
 		} finally {
 			try {
 				input.close();

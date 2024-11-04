@@ -17,6 +17,7 @@ public class ChatClient {
 	private ObjectOutputStream output;
 	private ObjectInputStream input;
 	private static final Logger LOGGER = LoggerFactory.getLogger(ChatClient.class);
+	private volatile boolean running = true;
 
 	public ChatClient(String hostname, int port, String username) {
 		this.hostname = hostname;
@@ -30,7 +31,7 @@ public class ChatClient {
 	public void execute() {
 		try {
 			socket = new Socket(hostname, port);
-			System.out.print("Connected to the chat server");
+			System.out.println("Connected to the chat server");
 
 			output = new ObjectOutputStream(socket.getOutputStream());
 			input = new ObjectInputStream(socket.getInputStream());
@@ -55,13 +56,15 @@ public class ChatClient {
 		public void run() {
 			try {
 				DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
-				while (true) {
+				while (running) {
 					Message message = (Message) input.readObject();
 					String timeString = message.getTimestamp().format(formatter);
 					System.out.println("[" + timeString + "] " + message.getSender() + ": " + message.getContent());
 				}
+			} catch (EOFException | SocketException ex) {
+				LOGGER.info("Connection closed: " + ex.getMessage());
 			} catch (IOException | ClassNotFoundException ex) {
-				LOGGER.error("Connection closed", ex);
+				LOGGER.error("Error during communication: " + ex.getMessage(), ex);
 			} finally {
 				try {
 					input.close();
@@ -85,6 +88,7 @@ public class ChatClient {
 				while (true) {
 					String text = scanner.nextLine();
 					if (text.equalsIgnoreCase("quit")) {
+						running = false;
 						socket.close();
 						break;
 					}
