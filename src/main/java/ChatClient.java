@@ -10,9 +10,9 @@ import java.util.Scanner;
 
 // A chat client that connects to a chat server and sends and receives messages
 public class ChatClient {
-	private String hostname;
-	private int port;
-	private String username;
+	private final String hostname;
+	private final int port;
+	private final String username;
 	private Socket socket;
 	private ObjectOutputStream output;
 	private ObjectInputStream input;
@@ -30,7 +30,7 @@ public class ChatClient {
 	public void execute() {
 		try {
 			socket = new Socket(hostname, port);
-			System.out.println("Connected to the chat server");
+			System.out.print("Connected to the chat server");
 
 			output = new ObjectOutputStream(socket.getOutputStream());
 			input = new ObjectInputStream(socket.getInputStream());
@@ -61,7 +61,15 @@ public class ChatClient {
 					System.out.println("[" + timeString + "] " + message.getSender() + ": " + message.getContent());
 				}
 			} catch (IOException | ClassNotFoundException ex) {
-				System.out.println("Connection closed");
+				LOGGER.error("Connection closed", ex);
+			} finally {
+				try {
+					input.close();
+					output.close();
+					socket.close();
+				} catch (IOException ex) {
+					LOGGER.error("Error closing client socket", ex);
+				}
 			}
 		}
 	}
@@ -75,7 +83,6 @@ public class ChatClient {
 			try {
 				Scanner scanner = new Scanner(System.in);
 				while (true) {
-					System.out.println("Me:");
 					String text = scanner.nextLine();
 					if (text.equalsIgnoreCase("quit")) {
 						socket.close();
@@ -86,7 +93,15 @@ public class ChatClient {
 					output.flush();
 				}
 			} catch (IOException ex) {
-				System.out.println("Disconnected from server.");
+				LOGGER.error("Disconnected from server.", ex);
+			} finally {
+				try {
+					input.close();
+					output.close();
+					socket.close();
+				} catch (IOException ex) {
+					LOGGER.error("Error closing client socket", ex);
+				}
 			}
 		}
 	}
