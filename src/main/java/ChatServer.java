@@ -19,6 +19,7 @@ public class ChatServer {
 	private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
 	private final ReentrantReadWriteLock.ReadLock readLock = rwLock.readLock();
 	private final ReentrantReadWriteLock.WriteLock writeLock = rwLock.writeLock();
+	private volatile boolean isRunning = true;
 
 	public ChatServer(int port) {
 		this.port = port;
@@ -29,17 +30,42 @@ public class ChatServer {
 	 * @throws IOException if there is an error starting the server
 	 */
 	public void start() throws IOException {
-		serverSocket = new ServerSocket(port);
-		LOGGER.info("Chat server started on port " + port);
-		// accept incoming connections from clients
-		while (true) {
-			Socket socket = serverSocket.accept();
-			LOGGER.info("New client connected");
-			// client handler to handle communication with the client, including receiving and broadcasting messages
-			ClientHandler clientHandler = new ClientHandler(socket, this);
-			addClient(clientHandler);
+		try {
+			serverSocket = new ServerSocket(port);
+			LOGGER.info("Chat server started on port " + port);
+			while (isRunning) {
+				try {
+					Socket socket = serverSocket.accept();
+					LOGGER.info("New client connected");
+					// 创建客户端处理器
+					ClientHandler clientHandler = new ClientHandler(socket, this);
+					addClient(clientHandler);
 
-			Thread.ofVirtual().start(clientHandler);
+					Thread.ofVirtual().start(clientHandler);
+				} catch (IOException e) {
+					if (isRunning) {
+						LOGGER.error("Error accepting client connection: " + e.getMessage());
+					} else {
+						LOGGER.info("Server is stopping, stop accepting new connections.");
+					}
+				}
+			}
+		} catch (IOException e) {
+			LOGGER.error("Could not start server: " + e.getMessage());
+		} finally {
+			stop();
+		}
+	}
+
+	private void stop() {
+		isRunning = false;
+		try {
+			if (serverSocket != null && !serverSocket.isClosed()) {
+				serverSocket.close();
+			}
+			LOGGER.info("Chat server stopped.");
+		} catch (IOException e) {
+			LOGGER.error("Error closing server socket: " + e.getMessage());
 		}
 	}
 
@@ -84,6 +110,11 @@ public class ChatServer {
 			clientHandlers.remove(clientHandler);
 		} finally {
 			writeLock.unlock();
+		}
+
+		// Stop the server if there are no more clients
+		if (clientHandlers.isEmpty()) {
+			stop();
 		}
 	}
 }
