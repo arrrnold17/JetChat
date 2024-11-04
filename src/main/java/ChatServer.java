@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.net.*;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /*
 	a chat server that listens for incoming connections from clients and broadcasts messages to all connected clients\n
@@ -15,6 +16,9 @@ public class ChatServer {
 	private final int port;
 	private ServerSocket serverSocket;
 	private final Set<ClientHandler> clientHandlers = Collections.synchronizedSet(new HashSet<>());
+	private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
+	private final ReentrantReadWriteLock.ReadLock readLock = rwLock.readLock();
+	private final ReentrantReadWriteLock.WriteLock writeLock = rwLock.writeLock();
 
 	public ChatServer(int port) {
 		this.port = port;
@@ -33,7 +37,7 @@ public class ChatServer {
 			LOGGER.info("New client connected");
 			// client handler to handle communication with the client, including receiving and broadcasting messages
 			ClientHandler clientHandler = new ClientHandler(socket, this);
-			clientHandlers.add(clientHandler);
+			addClient(clientHandler);
 
 			Thread.ofVirtual().start(clientHandler);
 		}
@@ -45,12 +49,28 @@ public class ChatServer {
 	 * @param excludeClient: client to exclude from broadcast, might be clientHandler itself
 	 */
 	public void broadcast(Message message, ClientHandler excludeClient) {
-		synchronized(clientHandlers) {
+		readLock.lock();
+		try {
 			for (ClientHandler client : clientHandlers) {
 				if (client != excludeClient) {
 					client.sendMessage(message);
 				}
 			}
+		} finally {
+			readLock.unlock();
+		}
+	}
+
+	/**
+	 * Adds a client handler to the list of connected clients
+	 * @param clientHandler: client handler to add
+	 */
+	private void addClient(ClientHandler clientHandler) {
+		writeLock.lock();
+		try {
+			clientHandlers.add(clientHandler);
+		} finally {
+			writeLock.unlock();
 		}
 	}
 
@@ -59,6 +79,11 @@ public class ChatServer {
 	 * @param clientHandler: client handler to remove
 	 */
 	public void removeClient(ClientHandler clientHandler) {
-		clientHandlers.remove(clientHandler);
+		writeLock.lock();
+		try {
+			clientHandlers.remove(clientHandler);
+		} finally {
+			writeLock.unlock();
+		}
 	}
 }
